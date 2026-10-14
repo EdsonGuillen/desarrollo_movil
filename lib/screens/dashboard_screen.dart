@@ -46,7 +46,16 @@ class DashboardScreen extends StatelessWidget {
                   Navigator.pushReplacementNamed(context, '/');
                   //Navigator.popUntil(context, ModalRoute.withName('/login'));
                 },
-               )
+               ),
+               ListTile(
+                title: Text("Lista de Notas Cloud"),
+                subtitle: Text("App Notes"),
+                leading: Icon(Icons.note),
+                trailing: Icon(Icons.chevron_right),
+                onTap: (){
+                  Navigator.pushNamed(context, "/notecloud");
+                },
+               ),
           ],
         ),
       ),    

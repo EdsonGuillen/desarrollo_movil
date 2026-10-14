@@ -6,87 +6,158 @@ class AddNoteScreen extends StatefulWidget {
   const AddNoteScreen({super.key});
 
   @override
-  State <AddNoteScreen> createState() =>  AddNoteScreenState();
+  State<AddNoteScreen> createState() => _AddNoteScreenState();
 }
 
-class  AddNoteScreenState extends State <AddNoteScreen> {
-  
-  NotesDB? notesDB;
+class _AddNoteScreenState extends State<AddNoteScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _conTitle = TextEditingController();
+  final _conContent = TextEditingController();
+
+  late final NotesDB _notesDB;
+  NotesDAO? _note;
+  bool _initialized = false;
+  bool _saving = false;
+
   @override
   void initState() {
     super.initState();
-    notesDB = NotesDB();
+    _notesDB = NotesDB();
   }
-  
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Se ejecuta una sola vez: carga la nota si viene como argumento
+    if (!_initialized) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is NotesDAO) {
+        _note = args;
+        _conTitle.text = args.title ?? '';
+        _conContent.text = args.content ?? '';
+      }
+      _initialized = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    _conTitle.dispose();
+    _conContent.dispose();
+    super.dispose();
+  }
+
+  String _today() {
+    final now = DateTime.now();
+    final mm = now.month.toString().padLeft(2, '0');
+    final dd = now.day.toString().padLeft(2, '0');
+    return '${now.year}-$mm-$dd';
+  }
+
+  Future<void> _saveNote() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _saving = true);
+
+    try {
+      final int result;
+
+      if (_note == null) {
+        result = await _notesDB.INSERT({
+          'title': _conTitle.text.trim(),
+          'content': _conContent.text.trim(),
+          'dateNote': _today(),
+        });
+      } else {
+        result = await _notesDB.UPDATE({
+          'idNote': _note!.idNote,
+          'title': _conTitle.text.trim(),
+          'content': _conContent.text.trim(),
+        });
+      }
+
+      if (!mounted) return;
+
+      if (result > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Se guardó el registro correctamente'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        Navigator.pop(context);
+      } else {
+        _showError('No se pudo guardar el registro');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showError('Error al guardar: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-
-    final conTitle = TextEditingController();
-    final conContent = TextEditingController();
-    NotesDAO? note;
-
-    if( ModalRoute.of(context)!.settings.arguments != null ){
-    final note = ModalRoute.of(context)!.settings.arguments as NotesDAO;
-    conTitle.text = note.title!;
-    conContent.text = note.content!;
-    }
-
-    final txtTitle = TextFormField(
-      controller: conTitle,
-    );
-    final txtContent = TextFormField(
-      maxLines: 8,
-      controller: conContent,
-    );
-    final space = SizedBox(height: 5,);
-    final btnSave = ElevatedButton(
-      onPressed: (){
-        if ( note == null ){
-      notesDB!.INSERT({
-        "title" : conTitle.text,
-        "content": conContent.text,
-        "dateNote": "2026-09-25"
-      }).then((value) {
-        if(value>0){
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Se guardo el registro correctamente'),
-              duration: Duration(seconds: 3), 
-            ),
-          );
-          Navigator.pop(context);
-        }
-      },);
-  }else{
-    notesDB!.UPDATE({
-      "idNote" : note.idNote,
-      "title" : conTitle.text,
-      "content" : conContent.text
-    }).then((value) {
-      if(value>0){
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Se guardo el registro correctamente'),
-              duration: Duration(seconds: 3), 
-            ),
-          );
-      }
-    });
-  } 
-      },
-      child: Text('Save Note')
-    );
+    final isEditing = _note != null;
 
     return Scaffold(
-      appBar: AppBar(title: Text('Insertar Nota'),),
-      body: Column(
-        children: [
-          txtTitle,
-          space,
-          txtContent,
-          space,
-          btnSave
-        ],
+      appBar: AppBar(
+        title: Text(isEditing ? 'Editar Nota' : 'Insertar Nota'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              TextFormField(
+                controller: _conTitle,
+                decoration: const InputDecoration(
+                  labelText: 'Título',
+                  border: OutlineInputBorder(),
+                ),
+                textInputAction: TextInputAction.next,
+                validator: (value) => (value == null || value.trim().isEmpty)
+                    ? 'El título es obligatorio'
+                    : null,
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _conContent,
+                maxLines: 8,
+                decoration: const InputDecoration(
+                  labelText: 'Contenido',
+                  alignLabelWithHint: true,
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => (value == null || value.trim().isEmpty)
+                    ? 'El contenido es obligatorio'
+                    : null,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saving ? null : _saveNote,
+                  child: _saving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Guardar nota'),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

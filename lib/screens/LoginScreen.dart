@@ -1,3 +1,4 @@
+import 'package:desarrollo_movil/config/email_auth.dart';
 import 'package:flutter/material.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -9,17 +10,55 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool isLoading = false;
+  final _userCtrl = TextEditingController();
+  final _pwdCtrl = TextEditingController();
+  final _auth = EmailAuth();
+
+  @override
+  void dispose() {
+    _userCtrl.dispose();
+    _pwdCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    final email = _userCtrl.text.trim();
+    final pwd = _pwdCtrl.text;
+
+    if (email.isEmpty || pwd.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Escribe tu correo y contraseña')),
+      );
+      return;
+    }
+
+    setState(() => isLoading = true);
+    final error = await _auth.m_loginUsuario(user: email, password: pwd);
+    if (!mounted) return;
+    setState(() => isLoading = false);
+
+    if (error == null) {
+      Navigator.pushNamed(context, "/dash");
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error)),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final txtUser = TextFormField(
+      controller: _userCtrl,
+      keyboardType: TextInputType.emailAddress,
       decoration: InputDecoration(
-        labelText: 'Usuario',
+        labelText: 'Correo electrónico',
         border: OutlineInputBorder(),
       ),
     );
 
     final txtPwd = TextFormField(
+      controller: _pwdCtrl,
       decoration: InputDecoration(
         labelText: 'Contraseña',
         border: OutlineInputBorder(),
@@ -33,23 +72,20 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     final btnLogin = ElevatedButton(
-      onPressed: (){
-        isLoading = !isLoading;
-        setState(() {});
-        Future.delayed(
-          Duration (seconds: 4)
-          ).then((value) {
-            Navigator.pushNamed(context, "/dash");
-            isLoading = false;
-            setState(() {});
-          });
-      },
+      onPressed: isLoading ? null : _login,
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.login),
+          SizedBox(width: 8),
           Text('Iniciar Sesión'),
         ],
-      )
+      ),
+    );
+
+    final btnRegister = TextButton(
+      onPressed: () => Navigator.pushNamed(context, "/register"),
+      child: Text('¿No tienes cuenta? Regístrate'),
     );
 
     final space = Container(height: 5,);
@@ -74,16 +110,17 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Container(
                 padding: EdgeInsets.all(30),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     txtUser,
                     Divider(height: 20, color: Colors.transparent),
                     txtPwd,
                     Divider(height: 20, color: Colors.transparent),
-                    btnLogin
+                    btnLogin,
+                    btnRegister,
                   ],
                 ),
-                height: 230,
-                width: MediaQuery.of(context).size.width * 0.5,
+                                width: MediaQuery.of(context).size.width * 0.8,
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.8),
                   borderRadius: BorderRadius.circular(20),
